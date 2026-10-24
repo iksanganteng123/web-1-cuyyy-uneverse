@@ -1,0 +1,101 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole { 
+  ADMIN
+  GURU
+  SISWA
+}
+
+enum AttendanceStatus {
+  HADIR
+  IZIN
+  SAKIT
+  ALPHA
+}
+
+model User {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  name         String
+  passwordHash String
+  role         UserRole
+  kelas        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  attendances     Attendance[]
+  quizSubmissions QuizSubmission[]
+  authoredQuizzes Quiz[]           @relation("QuizAuthor")
+}
+
+model Attendance {
+  id        String           @id @default(cuid())
+  studentId String
+  date      DateTime         @db.Date
+  status    AttendanceStatus
+  notes     String?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  student User @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, date])
+  @@index([date])
+}
+
+model Quiz {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  kelas       String?
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  createdBy  User?            @relation("QuizAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+  questions  QuizQuestion[]
+  submissions QuizSubmission[]
+
+  @@index([createdById])
+}
+
+model QuizQuestion {
+  id            String   @id @default(cuid())
+  quizId        String
+  question      String
+  options       String[]
+  correctAnswer String
+  explanation   String?
+  position      Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  quiz Quiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+
+  @@unique([quizId, position])
+  @@index([quizId])
+}
+
+model QuizSubmission {
+  id          String   @id @default(cuid())
+  quizId      String
+  studentId   String
+  attempt     Int      @default(1)
+  answers     Json?
+  score       Float?
+  submittedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  quiz    Quiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  student User @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([quizId, studentId, attempt])
+  @@index([studentId, submittedAt])
+}

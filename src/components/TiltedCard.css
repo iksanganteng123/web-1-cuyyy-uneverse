@@ -1,0 +1,46 @@
+.tilted-card-surface {
+  position: relative;
+  isolation: isolate;
+  transform: perspective(var(--tilt-card-perspective, 900px))
+    rotateX(var(--tilt-card-x, 0deg))
+    rotateY(var(--tilt-card-y, 0deg))
+    scale(var(--tilt-card-scale, 1));
+  transform-style: preserve-3d;
+  transition: transform 220ms cubic-bezier(0.2, 0.75, 0.25, 1);
+  will-change: transform;
+}
+
+.tilted-card-surface[data-tilt-active="true"] {
+  z-index: 1;
+}
+
+.tilted-card-surface__glare {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(
+    circle at var(--tilt-card-glare-x, 50%) var(--tilt-card-glare-y, 50%),
+    rgb(255 255 255 / var(--tilt-card-glare, 0)) 0,
+    transparent 68%
+  );
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 180ms ease;
+}
+
+.tilted-card-surface[data-tilt-active="true"] > .tilted-card-surface__glare {
+  opacity: 1;
+}
+
+@media (hover: none), (prefers-reduced-motion: reduce) {
+  .tilted-card-surface {
+    transform: none;
+    transition: none;
+    will-change: auto;
+  }
+
+  .tilted-card-surface__glare {
+    display: none;
+  }
+}
