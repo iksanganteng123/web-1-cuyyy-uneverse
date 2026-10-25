@@ -32,10 +32,23 @@ import {
 function App() {
   const theme = useStore((state) => state.theme);
 
+  // 1. Effect untuk Dark/Light Mode
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark");
     document.documentElement.style.colorScheme = theme;
   }, [theme]);
+
+  // 2. Effect untuk Sinkronisasi User dari Neon Database
+  useEffect(() => {
+    fetch('/api/users')
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) {
+          useAuthStore.setState({ users: data }); // Kemas kini state secara terus tanpa error
+        }
+      })
+      .catch((err) => console.error("Gagal sinkronisasi user:", err));
+  }, []);
 
   return (
     <Routes>
