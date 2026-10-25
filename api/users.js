@@ -1,6 +1,5 @@
 import { PrismaClient } from '@prisma/client';
 
-// Inisialisasi Prisma Client untuk Serverless Environment
 let prisma;
 if (process.env.NODE_ENV === 'production') {
   prisma = new PrismaClient();
@@ -12,7 +11,6 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 export default async function handler(req, res) {
-  // Set Header CORS & JSON
   res.setHeader('Content-Type', 'application/json');
 
   if (req.method !== 'POST') {
@@ -26,10 +24,9 @@ export default async function handler(req, res) {
       return res.status(400).json({ message: 'Nama, Username, dan Password wajib diisi!' });
     }
 
-    // Ubah role ke UPPERCASE sesuai Enum Prisma ('ADMIN', 'TEACHER', 'STUDENT')
     const formattedRole = role ? role.toUpperCase() : 'STUDENT';
 
-    // Cek apakah username/NIM sudah ada
+    // Cek apakah username sudah ada
     const existingUser = await prisma.user.findUnique({
       where: { username: String(username).trim() },
     });
@@ -43,7 +40,7 @@ export default async function handler(req, res) {
       data: {
         name: String(name).trim(),
         username: String(username).trim(),
-        passwordHash: String(password).trim(), // Jika tanpa hashing
+        passwordHash: String(password).trim(),
         role: formattedRole,
         kelas: formattedRole === 'ADMIN' ? null : (kelas || '1 SD'),
       },
@@ -51,10 +48,10 @@ export default async function handler(req, res) {
 
     return res.status(200).json(newUser);
   } catch (error) {
-    console.error('Prisma Error:', error);
+    console.error('Prisma Error Detail:', error);
+    // KITA TAMPILKAN ERROR ASLINYA KE LAYAR WEB
     return res.status(500).json({ 
-      message: 'Gagal menyimpan ke database server.', 
-      errorDetail: error.message 
+      message: `Error Detail: ${error.message}` 
     });
   }
 }
