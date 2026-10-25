@@ -42,52 +42,6 @@ const AdminDashboard = () => {
     return () => window.clearTimeout(timeoutId);
   }, [message]);
 
-  const handleSaveUser = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const previousUser = editingId
-      ? users.find((user) => user.id === editingId)
-      : undefined;
-    const user = {
-      ...form,
-      name: form.name.trim(),
-      username: form.username.trim(),
-      password: form.password.trim() || undefined,
-      kelas: form.role === "admin" ? undefined : form.kelas,
-    };
-    const succeeded = editingId
-      ? updateUser(editingId, user)
-      : Boolean(user.password) && addUser(user);
-
-    if (!succeeded) {
-      setMessage(
-        user.password || editingId
-          ? "Username sudah digunakan. Pilih username lain."
-          : "Password wajib diisi untuk akun baru.",
-      );
-      return;
-    }
-    if (
-      previousUser?.role === "student" &&
-      (user.role !== "student" || previousUser.username !== user.username)
-    ) {
-      removeStudentByNim(previousUser.username);
-    }
-    if (user.role === "student") {
-      addStudent({
-        nim: user.username,
-        name: user.name,
-        grade: Number.parseInt(user.kelas ?? "", 10) || 1,
-      });
-    }
-    setMessage(
-      editingId
-        ? "Perubahan akun berhasil disimpan."
-        : "Akun berhasil didaftarkan.",
-    );
-    setForm(emptyForm);
-    setEditingId(null);
-  };
-
   const startEditing = (user: User) => {
     setEditingId(user.id);
     setForm({
@@ -116,21 +70,85 @@ const AdminDashboard = () => {
 
   const handleAnnouncement = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (
-      !currentUser ||
-      !announcementTitle.trim() ||
-      !announcementMessage.trim()
-    )
+
+    const title = announcementTitle.trim();
+    const announcementText = announcementMessage.trim();
+    if (!title || !announcementText) {
+      setMessage("Judul dan isi pengumuman wajib diisi.");
       return;
+    }
+
+    if (!currentUser) {
+      setMessage("Sesi admin tidak tersedia. Silakan masuk kembali.");
+      return;
+    }
+
     addAnnouncement({
-      title: announcementTitle.trim(),
-      message: announcementMessage.trim(),
+      title,
+      message: announcementText,
       authorId: currentUser.id,
       authorName: currentUser.name,
     });
     setAnnouncementTitle("");
     setAnnouncementMessage("");
-    setMessage("Pengumuman berhasil dipublikasikan.");
+    setMessage("Pengumuman berhasil diterbitkan.");
+  };
+
+  const handleSaveUser = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const userData = {
+      ...form,
+      name: form.name.trim(),
+      username: form.username.trim(),
+      password: form.password.trim() || undefined,
+      kelas: form.role === "admin" ? undefined : form.kelas,
+    };
+
+    try {
+      // 1. Kirim data akun baru/edit ke Database Neon via API
+      const endpoint = editingId ? `/api/users/${editingId}` : `/api/users`;
+      const method = editingId ? "PUT" : "POST";
+
+      const response = await fetch(endpoint, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(userData),
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        setMessage(errData.message || "Gagal menyimpan akun ke Neon Database.");
+        return;
+      }
+
+      const savedUser = await response.json();
+
+      // 2. Update tampilan lokal setelah berhasil tersimpan di DB
+      if (editingId) {
+        updateUser(editingId, savedUser);
+      } else {
+        addUser(savedUser);
+      }
+
+      if (userData.role === "student") {
+        addStudent({
+          nim: userData.username,
+          name: userData.name,
+          grade: Number.parseInt(userData.kelas ?? "", 10) || 1,
+        });
+      }
+
+      setMessage(
+        editingId
+          ? "Perubahan akun berhasil disimpan ke database Neon!"
+          : "Akun berhasil didaftarkan langsung ke database Neon!",
+      );
+      setForm(emptyForm);
+      setEditingId(null);
+    } catch (error) {
+      console.error("Error saving user:", error);
+      setMessage("Terjadi kesalahan koneksi saat menyimpan akun.");
+    }
   };
 
   return (
@@ -138,7 +156,7 @@ const AdminDashboard = () => {
       <div className="mx-auto max-w-6xl space-y-6">
         {message && (
           <div
-            className="fixed right-4 top-16 z-[60] flex max-w-[calc(100vw-2rem)] items-start gap-3 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-bold text-sky-800 shadow-xl sm:right-6"
+            className="fixed right-4 top-16 z-60 flex max-w-[calc(100vw-2rem)] items-start gap-3 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-bold text-sky-800 shadow-xl sm:right-6"
             role="status"
           >
             <p className="min-w-0 flex-1">{message}</p>
@@ -157,7 +175,9 @@ const AdminDashboard = () => {
           <section className="grid gap-4 sm:grid-cols-3">
             <TiltedCard className="rounded-3xl border border-sky-100 bg-white p-5 shadow-sm">
               <p className="text-sm font-bold text-slate-500">Total akun</p>
-              <p className="mt-2 text-3xl font-black text-slate-800">{users.length}</p>
+              <p className="mt-2 text-3xl font-black text-slate-800">
+                {users.length}
+              </p>
             </TiltedCard>
             <TiltedCard className="rounded-3xl border border-emerald-100 bg-white p-5 shadow-sm">
               <p className="text-sm font-bold text-slate-500">Siswa</p>
@@ -166,202 +186,224 @@ const AdminDashboard = () => {
               </p>
             </TiltedCard>
             <TiltedCard className="rounded-3xl border border-amber-100 bg-white p-5 shadow-sm">
-              <p className="text-sm font-bold text-slate-500">Pengumuman aktif</p>
-              <p className="mt-2 text-3xl font-black text-amber-700">{announcements.length}</p>
+              <p className="text-sm font-bold text-slate-500">
+                Pengumuman aktif
+              </p>
+              <p className="mt-2 text-3xl font-black text-amber-700">
+                {announcements.length}
+              </p>
             </TiltedCard>
             <p className="text-sm font-medium text-slate-500 sm:col-span-3">
-              Halo, {currentUser?.name ?? "Admin"}. Pilih menu di sidebar untuk mengelola akun atau pengumuman.
+              Halo, {currentUser?.name ?? "Admin"}. Pilih menu di sidebar untuk
+              mengelola akun atau pengumuman.
             </p>
           </section>
         )}
 
-        {activeTab === "users" && <div id="accounts" className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          <TiltedCard as="section" className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm lg:col-span-5">
-            <h2 className="mb-5 text-xl font-black">
-              {editingId ? "Edit Akun" : "Daftarkan Akun Baru"}
-            </h2>
-            <form onSubmit={handleSaveUser} className="space-y-4">
-              <label className="block text-sm font-bold text-slate-700">
-                Role
-                <select
-                  value={form.role}
-                  onChange={(event) =>
-                    setForm({ ...form, role: event.target.value as Role })
-                  }
-                  className="mt-1 w-full rounded-2xl border-2 border-slate-200 p-3 transition-all focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500"
-                >
-                  <option value="admin">Admin</option>
-                  <option value="teacher">Guru</option>
-                  <option value="student">Siswa</option>
-                </select>
-              </label>
-              <label className="block text-sm font-bold text-slate-700">
-                Nama lengkap
-                <input
-                  required
-                  value={form.name}
-                  onChange={(event) =>
-                    setForm({ ...form, name: event.target.value })
-                  }
-                  className="mt-1 w-full rounded-2xl border-2 border-slate-200 p-3 transition-all focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500"
-                />
-              </label>
-              <label className="block text-sm font-bold text-slate-700">
-                Username / NIM / NIP
-                <input
-                  required
-                  value={form.username}
-                  onChange={(event) =>
-                    setForm({ ...form, username: event.target.value })
-                  }
-                  className="mt-1 w-full rounded-2xl border-2 border-slate-200 p-3 transition-all focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500"
-                />
-              </label>
-              <label className="block text-sm font-bold text-slate-700">
-                Password{" "}
-                {editingId && (
-                  <span className="font-medium text-slate-400">
-                    (kosongkan untuk tetap memakai password lama)
-                  </span>
-                )}
-                <input
-                  required={!editingId}
-                  type="password"
-                  value={form.password}
-                  onChange={(event) =>
-                    setForm({ ...form, password: event.target.value })
-                  }
-                  className="mt-1 w-full rounded-2xl border-2 border-slate-200 p-3 transition-all focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500"
-                />
-              </label>
-              {form.role !== "admin" && (
+        {activeTab === "users" && (
+          <div
+            id="accounts"
+            className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start"
+          >
+            <TiltedCard
+              as="section"
+              className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm lg:col-span-5"
+            >
+              <h2 className="mb-5 text-xl font-black">
+                {editingId ? "Edit Akun" : "Daftarkan Akun Baru"}
+              </h2>
+              <form onSubmit={handleSaveUser} className="space-y-4">
                 <label className="block text-sm font-bold text-slate-700">
-                  {form.role === "teacher"
-                    ? "Kelas yang diampu"
-                    : "Kelas siswa"}
+                  Role
                   <select
-                    value={form.kelas}
+                    value={form.role}
                     onChange={(event) =>
-                      setForm({ ...form, kelas: event.target.value })
+                      setForm({ ...form, role: event.target.value as Role })
                     }
                     className="mt-1 w-full rounded-2xl border-2 border-slate-200 p-3 transition-all focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500"
                   >
-                    {classOptions.map((level) => (
-                      <option key={level} value={`${level} SD`}>
-                        Kelas {level} SD
-                      </option>
-                    ))}
+                    <option value="admin">Admin</option>
+                    <option value="teacher">Guru</option>
+                    <option value="student">Siswa</option>
                   </select>
                 </label>
-              )}
-              <div className="flex gap-3">
-                <button
-                  type="submit"
-                  className="flex-1 rounded-2xl border-2 border-emerald-700 bg-emerald-500 p-3 font-black text-white shadow-[0_4px_0_0_#047857] transition-all duration-200 hover:-translate-y-0.5 hover:bg-emerald-600 hover:shadow-md active:scale-95 active:translate-y-1 active:shadow-none"
-                >
-                  {editingId ? "Simpan Perubahan" : "Daftarkan Akun"}
-                </button>
-                {editingId && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditingId(null);
-                      setForm(emptyForm);
-                    }}
-                    className="rounded-2xl bg-slate-100 px-4 font-bold transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95"
-                  >
-                    Batal
-                  </button>
+                <label className="block text-sm font-bold text-slate-700">
+                  Nama lengkap
+                  <input
+                    required
+                    value={form.name}
+                    onChange={(event) =>
+                      setForm({ ...form, name: event.target.value })
+                    }
+                    className="mt-1 w-full rounded-2xl border-2 border-slate-200 p-3 transition-all focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500"
+                  />
+                </label>
+                <label className="block text-sm font-bold text-slate-700">
+                  Username / NIM / NIP
+                  <input
+                    required
+                    value={form.username}
+                    onChange={(event) =>
+                      setForm({ ...form, username: event.target.value })
+                    }
+                    className="mt-1 w-full rounded-2xl border-2 border-slate-200 p-3 transition-all focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500"
+                  />
+                </label>
+                <label className="block text-sm font-bold text-slate-700">
+                  Password{" "}
+                  {editingId && (
+                    <span className="font-medium text-slate-400">
+                      (kosongkan untuk tetap memakai password lama)
+                    </span>
+                  )}
+                  <input
+                    required={!editingId}
+                    type="password"
+                    value={form.password}
+                    onChange={(event) =>
+                      setForm({ ...form, password: event.target.value })
+                    }
+                    className="mt-1 w-full rounded-2xl border-2 border-slate-200 p-3 transition-all focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500"
+                  />
+                </label>
+                {form.role !== "admin" && (
+                  <label className="block text-sm font-bold text-slate-700">
+                    {form.role === "teacher"
+                      ? "Kelas yang diampu"
+                      : "Kelas siswa"}
+                    <select
+                      value={form.kelas}
+                      onChange={(event) =>
+                        setForm({ ...form, kelas: event.target.value })
+                      }
+                      className="mt-1 w-full rounded-2xl border-2 border-slate-200 p-3 transition-all focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500"
+                    >
+                      {classOptions.map((level) => (
+                        <option key={level} value={`${level} SD`}>
+                          Kelas {level} SD
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                 )}
-              </div>
-            </form>
-          </TiltedCard>
+                <div className="flex gap-3">
+                  <button
+                    type="submit"
+                    className="flex-1 rounded-2xl border-2 border-emerald-700 bg-emerald-500 p-3 font-black text-white shadow-[0_4px_0_0_#047857] transition-all duration-200 hover:-translate-y-0.5 hover:bg-emerald-600 hover:shadow-md active:scale-95 active:translate-y-1 active:shadow-none"
+                  >
+                    {editingId ? "Simpan Perubahan" : "Daftarkan Akun"}
+                  </button>
+                  {editingId && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingId(null);
+                        setForm(emptyForm);
+                      }}
+                      className="rounded-2xl bg-slate-100 px-4 font-bold transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95"
+                    >
+                      Batal
+                    </button>
+                  )}
+                </div>
+              </form>
+            </TiltedCard>
 
-          <TiltedCard as="section" className="min-w-0 rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm lg:col-span-7">
-            <h2 className="mb-4 text-xl font-black">
-              Manajemen Pengguna ({users.length})
-            </h2>
-            <div className="w-full min-w-0 overflow-hidden">
-              <table className="w-full table-fixed text-left font-sans text-xs sm:text-sm">
-                <thead>
-                  <tr className="border-b-2 border-slate-100 text-xs uppercase text-slate-500">
-                    <th className="w-1/2 p-2 sm:w-[34%] sm:p-3">Nama / ID</th>
-                    <th className="hidden p-2 sm:table-cell sm:w-[16%] sm:p-3">Role</th>
-                    <th className="hidden p-2 sm:table-cell sm:w-[18%] sm:p-3">Kelas</th>
-                    <th className="w-1/2 p-2 sm:w-[32%] sm:p-3">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.map((user) => (
-                    <tr key={user.id} className="border-b border-slate-100">
-                      <td className="break-words p-2 sm:p-3">
-                        <p className="font-black">{user.name}</p>
-                        <p className="break-all text-xs font-semibold text-slate-500">
-                          {user.username}
-                        </p>
-                        <div className="mt-2 flex flex-wrap gap-1 sm:hidden">
-                          <span className="rounded-lg bg-indigo-50 px-2 py-1 text-[10px] font-bold capitalize text-indigo-700">
+            <TiltedCard
+              as="section"
+              className="min-w-0 rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm lg:col-span-7"
+            >
+              <h2 className="mb-4 text-xl font-black">
+                Manajemen Pengguna ({users.length})
+              </h2>
+              <div className="w-full min-w-0 overflow-hidden">
+                <table className="w-full table-fixed text-left font-sans text-xs sm:text-sm">
+                  <thead>
+                    <tr className="border-b-2 border-slate-100 text-xs uppercase text-slate-500">
+                      <th className="w-1/2 p-2 sm:w-[34%] sm:p-3">Nama / ID</th>
+                      <th className="hidden p-2 sm:table-cell sm:w-[16%] sm:p-3">
+                        Role
+                      </th>
+                      <th className="hidden p-2 sm:table-cell sm:w-[18%] sm:p-3">
+                        Kelas
+                      </th>
+                      <th className="w-1/2 p-2 sm:w-[32%] sm:p-3">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {users.map((user) => (
+                      <tr key={user.id} className="border-b border-slate-100">
+                        <td className="wrap-break-word p-2 sm:p-3">
+                          <p className="font-black">{user.name}</p>
+                          <p className="break-all text-xs font-semibold text-slate-500">
+                            {user.username}
+                          </p>
+                          <div className="mt-2 flex flex-wrap gap-1 sm:hidden">
+                            <span className="rounded-lg bg-indigo-50 px-2 py-1 text-[10px] font-bold capitalize text-indigo-700">
+                              {user.role}
+                            </span>
+                            {user.kelas && (
+                              <span className="rounded-lg bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-600">
+                                {user.kelas}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="hidden p-2 sm:table-cell sm:p-3">
+                          <span className="rounded-lg bg-indigo-50 px-2 py-1 text-xs font-black capitalize text-indigo-700">
                             {user.role}
                           </span>
-                          {user.kelas && (
-                            <span className="rounded-lg bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-600">
-                              {user.kelas}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="hidden p-2 sm:table-cell sm:p-3">
-                        <span className="rounded-lg bg-indigo-50 px-2 py-1 text-xs font-black capitalize text-indigo-700">
-                          {user.role}
-                        </span>
-                      </td>
-                      <td className="hidden break-words p-2 font-semibold sm:table-cell sm:p-3">{user.kelas ?? "—"}</td>
-                      <td className="p-2 sm:p-3">
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            onClick={() => startEditing(user)}
-                            className="rounded-lg bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setPasswordResetUser(user);
-                              setNewPassword("");
-                              setMessage("");
-                            }}
-                            className="rounded-lg bg-sky-100 px-2.5 py-1 text-xs font-semibold text-sky-800 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95"
-                          >
-                            Reset Password
-                          </button>
-                          {user.id !== currentUser?.id && (
+                        </td>
+                        <td className="hidden wrap-break-word p-2 font-semibold sm:table-cell sm:p-3">
+                          {user.kelas ?? "—"}
+                        </td>
+                        <td className="p-2 sm:p-3">
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => startEditing(user)}
+                              className="rounded-lg bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95"
+                            >
+                              Edit
+                            </button>
                             <button
                               type="button"
                               onClick={() => {
-                                if (
-                                  window.confirm(`Hapus akun ${user.name}?`)
-                                ) {
-                                  deleteUser(user.id);
-                                  if (user.role === "student")
-                                    removeStudentByNim(user.username);
-                                }
+                                setPasswordResetUser(user);
+                                setNewPassword("");
+                                setMessage("");
                               }}
-                              className="rounded-lg bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-700 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95"
+                              className="rounded-lg bg-sky-100 px-2.5 py-1 text-xs font-semibold text-sky-800 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95"
                             >
-                              Hapus
+                              Reset Password
                             </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </TiltedCard>
-        </div>}
+                            {user.id !== currentUser?.id && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (
+                                    window.confirm(`Hapus akun ${user.name}?`)
+                                  ) {
+                                    deleteUser(user.id);
+                                    if (user.role === "student")
+                                      removeStudentByNim(user.username);
+                                  }
+                                }}
+                                className="rounded-lg bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-700 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95"
+                              >
+                                Hapus
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </TiltedCard>
+          </div>
+        )}
 
         {passwordResetUser && (
           <div
@@ -379,7 +421,10 @@ const AdminDashboard = () => {
               className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl"
               role="dialog"
             >
-              <h2 id="reset-password-title" className="text-xl font-black text-slate-900">
+              <h2
+                id="reset-password-title"
+                className="text-xl font-black text-slate-900"
+              >
                 Atur password baru
               </h2>
               <p className="mt-2 text-sm leading-6 text-slate-600">
@@ -427,64 +472,71 @@ const AdminDashboard = () => {
           </div>
         )}
 
-        {activeTab === "announcements" && <section id="announcements" className="grid gap-6 lg:grid-cols-2">
-          <TiltedCard className="rounded-3xl border-2 border-amber-200 bg-white p-5 shadow-[0_5px_0_0_#fde68a] sm:p-7">
-          <form onSubmit={handleAnnouncement} className="space-y-3">
-            <h2 className="text-xl font-black">📣 Terbitkan Pengumuman</h2>
-            <input
-              required
-              value={announcementTitle}
-              onChange={(event) => setAnnouncementTitle(event.target.value)}
-              placeholder="Judul pengumuman"
-              className="w-full rounded-2xl border-2 border-slate-200 p-3 transition-all focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500"
-            />
-            <textarea
-              required
-              rows={4}
-              value={announcementMessage}
-              onChange={(event) => setAnnouncementMessage(event.target.value)}
-              placeholder="Informasi untuk seluruh siswa..."
-              className="w-full rounded-2xl border-2 border-slate-200 p-3 transition-all focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500"
-            />
-            <button className="rounded-2xl bg-amber-500 px-5 py-3 font-black text-white shadow-[0_4px_0_0_#b45309] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95 active:translate-y-1">
-              Publikasikan
-            </button>
-          </form>
-            </TiltedCard>
-            <TiltedCard as="section" className="space-y-3 rounded-3xl border-2 border-slate-200 bg-white p-5 shadow-[0_5px_0_0_#e2e8f0] sm:p-7">
-            <h2 className="text-xl font-black">
-              Pengumuman Terbit ({announcements.length})
-            </h2>
-            {announcements.length === 0 && (
-              <p className="text-sm font-medium text-slate-500">
-                Belum ada pengumuman.
-              </p>
-            )}
-            {announcements.map((item) => (
-              <article
-                key={item.id}
-                className="flex justify-between gap-3 rounded-2xl bg-amber-50 p-4"
-              >
-                <div>
-                  <h3 className="font-black">{item.title}</h3>
-                  <p className="mt-1 whitespace-pre-wrap text-sm">
-                    {item.message}
-                  </p>
-                  <p className="mt-2 text-xs font-bold text-slate-500">
-                    {item.authorName} ·{" "}
-                    {new Date(item.createdAt).toLocaleDateString("id-ID")}
-                  </p>
-                </div>
-                <button
-                  onClick={() => deleteAnnouncement(item.id)}
-                  className="h-fit rounded-lg bg-rose-100 px-2 py-1 text-xs font-bold text-rose-700 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95"
-                >
-                  Hapus
+        {activeTab === "announcements" && (
+          <section id="announcements" className="grid gap-6 lg:grid-cols-2">
+            <TiltedCard className="rounded-3xl border-2 border-amber-200 bg-white p-5 shadow-[0_5px_0_0_#fde68a] sm:p-7">
+              <form onSubmit={handleAnnouncement} className="space-y-3">
+                <h2 className="text-xl font-black">📣 Terbitkan Pengumuman</h2>
+                <input
+                  required
+                  value={announcementTitle}
+                  onChange={(event) => setAnnouncementTitle(event.target.value)}
+                  placeholder="Judul pengumuman"
+                  className="w-full rounded-2xl border-2 border-slate-200 p-3 transition-all focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500"
+                />
+                <textarea
+                  required
+                  rows={4}
+                  value={announcementMessage}
+                  onChange={(event) =>
+                    setAnnouncementMessage(event.target.value)
+                  }
+                  placeholder="Informasi untuk seluruh siswa..."
+                  className="w-full rounded-2xl border-2 border-slate-200 p-3 transition-all focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500"
+                />
+                <button className="rounded-2xl bg-amber-500 px-5 py-3 font-black text-white shadow-[0_4px_0_0_#b45309] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95 active:translate-y-1">
+                  Publikasikan
                 </button>
-              </article>
-            ))}
-          </TiltedCard>
-        </section>}
+              </form>
+            </TiltedCard>
+            <TiltedCard
+              as="section"
+              className="space-y-3 rounded-3xl border-2 border-slate-200 bg-white p-5 shadow-[0_5px_0_0_#e2e8f0] sm:p-7"
+            >
+              <h2 className="text-xl font-black">
+                Pengumuman Terbit ({announcements.length})
+              </h2>
+              {announcements.length === 0 && (
+                <p className="text-sm font-medium text-slate-500">
+                  Belum ada pengumuman.
+                </p>
+              )}
+              {announcements.map((item) => (
+                <article
+                  key={item.id}
+                  className="flex justify-between gap-3 rounded-2xl bg-amber-50 p-4"
+                >
+                  <div>
+                    <h3 className="font-black">{item.title}</h3>
+                    <p className="mt-1 whitespace-pre-wrap text-sm">
+                      {item.message}
+                    </p>
+                    <p className="mt-2 text-xs font-bold text-slate-500">
+                      {item.authorName} ·{" "}
+                      {new Date(item.createdAt).toLocaleDateString("id-ID")}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => deleteAnnouncement(item.id)}
+                    className="h-fit rounded-lg bg-rose-100 px-2 py-1 text-xs font-bold text-rose-700 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95"
+                  >
+                    Hapus
+                  </button>
+                </article>
+              ))}
+            </TiltedCard>
+          </section>
+        )}
       </div>
     </div>
   );
