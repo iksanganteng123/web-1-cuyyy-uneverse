@@ -15,8 +15,8 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-dvh w-full bg-slate-50 text-slate-800 font-sans flex flex-col justify-between selection:bg-emerald-500 selection:text-white">
-      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 sm:px-8 lg:px-16 py-3.5">
-        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+      <header className="sticky top-0 z-50 flex items-center justify-between gap-4 border-b border-slate-200 bg-white/95 px-4 py-3.5 backdrop-blur-md sm:px-8 lg:px-16">
+        <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4">
           <div className="flex items-center gap-2.5">
             <div className="bg-emerald-600 p-2 rounded-xl text-white shadow-md shadow-emerald-600/20">
               <Sun className="w-5 h-5 sm:w-6 sm:h-6 animate-pulse" />
@@ -32,29 +32,38 @@ export default function LandingPage() {
           </div>
 
           <nav className="hidden md:flex items-center gap-8 text-sm font-semibold text-slate-600">
-            <a href="#tentang" className="hover:text-emerald-600 transition-colors">
+            <a
+              href="#tentang"
+              className="hover:text-emerald-600 transition-colors"
+            >
               Tentang Sekolah
             </a>
-            <a href="#akademik" className="hover:text-emerald-600 transition-colors">
+            <a
+              href="#akademik"
+              className="hover:text-emerald-600 transition-colors"
+            >
               Akademik
             </a>
-            <a href="#bantuan" className="hover:text-emerald-600 transition-colors">
+            <a
+              href="#bantuan"
+              className="hover:text-emerald-600 transition-colors"
+            >
               Kontak & Bantuan
             </a>
           </nav>
 
           <button
             onClick={handleGoToLogin}
-            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white px-4 py-2 sm:px-5 sm:py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all shadow-md shadow-emerald-600/20 cursor-pointer"
+            className="inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-semibold text-white shadow-sm transition-all hover:bg-emerald-700 cursor-pointer sm:px-5 sm:text-sm"
           >
-            <LogIn className="w-4 h-4" />
+            <LogIn className="h-4 w-4 shrink-0" />
             <span>Masuk Portal</span>
           </button>
         </div>
       </header>
 
-      <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-8 lg:px-16 py-8 sm:py-16 flex flex-col justify-center gap-8">
-        <div className="space-y-4 text-left max-w-2xl">
+      <main className="grid flex-1 w-full max-w-screen-2xl grid-cols-1 content-center items-center gap-x-12 gap-y-10 mx-auto px-4 sm:px-8 lg:grid-cols-2 lg:px-12 py-8 sm:py-16">
+        <div className="min-w-0 space-y-4 text-left max-w-2xl">
           <div className="inline-flex items-center gap-2 bg-emerald-100/80 border border-emerald-200 text-emerald-800 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
             <ShieldCheck className="w-4 h-4 text-emerald-600" /> Academic Portal
           </div>
@@ -79,7 +88,7 @@ export default function LandingPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4">
+        <div className="grid min-w-0 grid-cols-1 gap-4 pt-4 xl:grid-cols-2">
           <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-2">
             <div className="w-10 h-10 bg-amber-100 text-amber-600 rounded-xl flex items-center justify-center font-bold text-lg">
               🌱
@@ -103,17 +112,17 @@ export default function LandingPage() {
           </div>
         </div>
 
-        <div id="akademik" className="pt-6 space-y-4">
+        <div id="akademik" className="min-w-0 space-y-4 pt-6 lg:col-span-2">
           <h2 className="text-xl font-extrabold text-slate-900">
             Layanan Akademik
           </h2>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid min-w-0 grid-cols-1 gap-3 md:grid-cols-3">
             <div className="p-4 bg-white rounded-2xl border border-slate-200/80 flex items-center gap-3.5 shadow-xs">
               <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl shrink-0">
                 <BookOpen className="w-6 h-6" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <h4 className="font-bold text-sm text-slate-900">
                   Kurikulum SD
                 </h4>
@@ -127,7 +136,7 @@ export default function LandingPage() {
               <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl shrink-0">
                 <Award className="w-6 h-6" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <h4 className="font-bold text-sm text-slate-900">
                   Program Kuis
                 </h4>
@@ -141,7 +150,7 @@ export default function LandingPage() {
               <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl shrink-0">
                 <Users className="w-6 h-6" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <h4 className="font-bold text-sm text-slate-900">
                   Jadwal Belajar
                 </h4>
