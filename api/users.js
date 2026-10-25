@@ -18,14 +18,33 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { name, username, password, role, kelas } = req.body || {};
+    const body = req.body || {};
+    const name = body.name;
+    const username = body.username;
+    const password = body.password;
+    
+    // Amankan pengambilan role (bisa berupa string atau objek dari form)
+    let rawRole = body.role;
+    if (typeof rawRole === 'object' && rawRole !== null) {
+      rawRole = rawRole.value || rawRole.name || 'student';
+    }
+    const roleStr = String(rawRole || 'student').toLowerCase().trim();
+
+    // Format role menjadi PascalCase sesuai standar Prisma Enum (Student, Teacher, Admin)
+    let formattedRole = 'Student';
+    if (roleStr.includes('admin')) {
+      formattedRole = 'Admin';
+    } else if (roleStr.includes('teach') || roleStr.includes('guru')) {
+      formattedRole = 'Teacher';
+    } else {
+      formattedRole = 'Student';
+    }
+
+    const kelas = body.kelas ? (typeof body.kelas === 'object' ? (body.kelas.value || '1 SD') : String(body.kelas)) : '1 SD';
 
     if (!name || !username || !password) {
       return res.status(400).json({ message: 'Nama, Username, dan Password wajib diisi!' });
     }
-
-    // Ubah role ke lowercase agar sesuai dengan Enum Prisma di database
-    const formattedRole = role ? String(role).toLowerCase().trim() : 'student';
 
     // Cek apakah username/NIM sudah terdaftar di database Neon
     const existingUser = await prisma.user.findUnique({
@@ -43,7 +62,7 @@ export default async function handler(req, res) {
         username: String(username).trim(),
         passwordHash: String(password).trim(),
         role: formattedRole,
-        kelas: formattedRole === 'admin' ? null : (kelas || '1 SD'),
+        kelas: formattedRole === 'Admin' ? null : kelas,
       },
     });
 
