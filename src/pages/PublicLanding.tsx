@@ -23,7 +23,7 @@ export default function LandingPage() {
             </div>
             <div className="flex flex-col">
               <span className="font-black text-base sm:text-xl tracking-wider text-slate-900 leading-none">
-                MENTARI
+                Ican APK
               </span>
               <span className="text-[10px] sm:text-xs text-slate-500 font-bold tracking-tight">
                 E-Learning SD

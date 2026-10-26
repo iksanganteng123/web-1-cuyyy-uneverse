@@ -62,7 +62,7 @@ export default function Login() {
             </div>
             <div>
               <h2 className="font-bold text-base sm:text-lg tracking-wide text-slate-900 leading-tight">
-                MENTARI
+                ICAN KURSUS
               </h2>
               <p className="text-[10px] sm:text-xs text-slate-500 font-medium">
                 Portal E-Learning Terpadu
