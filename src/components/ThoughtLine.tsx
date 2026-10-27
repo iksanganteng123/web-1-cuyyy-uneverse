@@ -106,14 +106,10 @@ export default function ThoughtLine({
   const [settledAnnounce, setSettledAnnounce] = useState<string | null>(null);
 
   useEffect(() => {
-    // Reset the automatic-settle latch when a new request starts.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (working) setAutoSettled(false);
   }, [working]);
 
   useEffect(() => {
-    // Keep the trace open while working and fold it after the request settles.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (isWorking) setOpen(true);
     else if (collapseOnSettle) setOpen(false);
   }, [isWorking, collapseOnSettle]);
