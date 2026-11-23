@@ -32,6 +32,7 @@ const AdminDashboard = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [passwordResetUser, setPasswordResetUser] = useState<User | null>(null);
   const [newPassword, setNewPassword] = useState("");
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [announcementTitle, setAnnouncementTitle] = useState("");
   const [announcementMessage, setAnnouncementMessage] = useState("");
@@ -148,6 +149,41 @@ const AdminDashboard = () => {
     } catch (error) {
       console.error("Error saving user:", error);
       setMessage("Terjadi kesalahan koneksi saat menyimpan akun.");
+    }
+  };
+
+  const handleDeleteUser = async (user: User) => {
+    if (!window.confirm(`Hapus akun ${user.name}?`)) return;
+
+    setDeletingUserId(user.id);
+    setMessage("");
+
+    try {
+      const response = await fetch(`/api/users/${encodeURIComponent(user.id)}`, {
+        method: "DELETE",
+      });
+      const result = await response
+        .json()
+        .catch((): { message?: string; error?: string } => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          result.message ?? result.error ?? "Gagal menghapus akun dari database.",
+        );
+      }
+
+      deleteUser(user.id);
+      if (user.role === "student") removeStudentByNim(user.username);
+      setMessage(`Akun ${user.name} berhasil dihapus.`);
+    } catch (error) {
+      console.error("Error deleting user:", error);
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Terjadi kesalahan koneksi saat menghapus akun.",
+      );
+    } finally {
+      setDeletingUserId(null);
     }
   };
 
@@ -380,18 +416,13 @@ const AdminDashboard = () => {
                             {user.id !== currentUser?.id && (
                               <button
                                 type="button"
-                                onClick={() => {
-                                  if (
-                                    window.confirm(`Hapus akun ${user.name}?`)
-                                  ) {
-                                    deleteUser(user.id);
-                                    if (user.role === "student")
-                                      removeStudentByNim(user.username);
-                                  }
-                                }}
+                                onClick={() => void handleDeleteUser(user)}
+                                disabled={deletingUserId === user.id}
                                 className="rounded-lg bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-700 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95"
                               >
-                                Hapus
+                                {deletingUserId === user.id
+                                  ? "Menghapus..."
+                                  : "Hapus"}
                               </button>
                             )}
                           </div>

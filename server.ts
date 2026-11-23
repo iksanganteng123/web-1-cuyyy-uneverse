@@ -126,6 +126,39 @@ function requireRole(...roles: UserRole[]): RequestHandler {
   }
 }
 
+app.get("/api/users", async (_request, response) => {
+  const users = await prisma.user.findMany({
+    orderBy: { createdAt: "desc" },
+  })
+
+  response.json(
+    users.map((user) => ({
+      id: user.id,
+      username: user.username,
+      name: user.name,
+      password: user.passwordHash,
+      role: roleNames[user.role],
+      kelas: user.kelas,
+    })),
+  )
+})
+
+app.delete("/api/users/:id", async (request, response) => {
+  const id = request.params.id.trim()
+  if (!id) {
+    response.status(400).json({ message: "ID akun wajib diisi." })
+    return
+  }
+
+  const result = await prisma.user.deleteMany({ where: { id } })
+  if (result.count === 0) {
+    response.status(404).json({ message: "Akun pengguna tidak ditemukan." })
+    return
+  }
+
+  response.status(200).json({ message: "Akun berhasil dihapus." })
+})
+
 app.post("/api/auth/login", async (request, response) => {
   if (!isRecord(request.body)) {
     response.status(400).json({ error: "Body permintaan tidak valid." })

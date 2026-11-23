@@ -23,18 +23,10 @@ interface AuthState {
   deleteUser: (id: string) => void
 }
 
-const initialUsers: User[] = [
-  { id: '1', username: 'admin', password: '040304', name: 'Super Admin', role: 'admin' },
-  { id: '2', username: 'guru1', password: '123', name: 'Pak Guru', role: 'teacher', kelas: '1 SD' },
-  { id: '3', username: '231091700072', password: '123', name: 'Ikhsan Aslani', role: 'student', kelas: '3 SD' },
-  { id: '4', username: '202301001', password: '123', name: 'Budi Santoso', role: 'student', kelas: '1 SD' },
-  { id: '5', username: '82382868', password: 'sendi123', name: 'Sendi Dwi Putra', role: 'student', kelas: '3 SD' },
-]
-
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
-      users: initialUsers,
+      users: [],
       currentUser: null,
 
       login: (username, password) => {
@@ -165,28 +157,15 @@ export const useAuthStore = create<AuthState>()(
       },
       merge: (persistedState, currentState) => {
         const persisted = persistedState as Partial<AuthState>
-        const savedUsers = persisted.users ?? []
-        const users = savedUsers.length
-          ? savedUsers.map((user) => {
-              const initial = initialUsers.find(
-                (item) => item.username.toLowerCase() === user.username.toLowerCase(),
-              )
-              return initial && !user.kelas ? { ...user, kelas: initial.kelas } : user
-            })
-          : initialUsers
+        const users = persisted.users ?? []
         const activeUser = persisted.currentUser
-        const initialActiveUser = activeUser
-          ? initialUsers.find(
-              (user) => user.username.toLowerCase() === activeUser.username.toLowerCase(),
-            )
-          : undefined
         const currentUser = activeUser
           ? {
               id: activeUser.id,
               username: activeUser.username,
               name: activeUser.name,
               role: activeUser.role,
-              kelas: activeUser.kelas ?? initialActiveUser?.kelas,
+              kelas: activeUser.kelas,
             }
           : null
         return { ...currentState, users, currentUser }

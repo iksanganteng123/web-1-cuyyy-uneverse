@@ -41,11 +41,18 @@ function App() {
   // 2. Effect untuk Sinkronisasi User dari Neon Database
   useEffect(() => {
     fetch('/api/users')
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error(`Gagal memuat user: HTTP ${res.status}`);
+        }
+        return res.json();
+      })
       .then((data) => {
         if (Array.isArray(data)) {
           useAuthStore.setState({ users: data }); // Kemas kini state secara terus tanpa error
+          return;
         }
+        throw new Error("Respons daftar pengguna tidak valid.");
       })
       .catch((err) => console.error("Gagal sinkronisasi user:", err));
   }, []);
