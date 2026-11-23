@@ -1,6 +1,10 @@
 {
   "rewrites": [
     {
+      "source": "/api/users/:id",
+      "destination": "/api/users?id=:id"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/server.ts"
     },

@@ -150,13 +150,36 @@ app.delete("/api/users/:id", async (request, response) => {
     return
   }
 
-  const result = await prisma.user.deleteMany({ where: { id } })
-  if (result.count === 0) {
-    response.status(404).json({ message: "Akun pengguna tidak ditemukan." })
-    return
-  }
+  try {
+    const deleted = await prisma.$transaction(async (transaction) => {
+      const user = await transaction.user.findUnique({
+        where: { id },
+        select: { id: true },
+      })
+      if (!user) return false
 
-  response.status(200).json({ message: "Akun berhasil dihapus." })
+      await transaction.attendance.deleteMany({ where: { studentId: id } })
+      await transaction.quizSubmission.deleteMany({ where: { studentId: id } })
+      await transaction.quiz.updateMany({
+        where: { createdById: id },
+        data: { createdById: null },
+      })
+      await transaction.user.delete({ where: { id } })
+      return true
+    })
+
+    if (!deleted) {
+      response.status(404).json({ message: "Akun pengguna tidak ditemukan." })
+      return
+    }
+
+    response.status(200).json({ message: "Akun berhasil dihapus." })
+  } catch (error) {
+    console.error("Gagal menghapus user dari database:", error)
+    response.status(500).json({
+      message: `Gagal menghapus akun: ${error instanceof Error ? error.message : String(error)}`,
+    })
+  }
 })
 
 app.post("/api/auth/login", async (request, response) => {

@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { Subject } from "../data/dummy";
 import { useStore } from "../store/useStore";
 import TiltedCard from "../components/TiltedCard";
-import ThoughtLine from "../components/ThoughtLine";
+import LatticeLoader from "../components/LatticeLoader";
 
 interface SubjectDetailProps {
   subject: Subject;
@@ -23,6 +23,7 @@ const SubjectDetail = ({ subject, onBack, onLessonSelect }: SubjectDetailProps) 
   const [aiAnswer, setAiAnswer] = useState("");
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [hasAskedAI, setHasAskedAI] = useState(false);
+  const [aiStatus, setAiStatus] = useState<"working" | "done" | "error">("working");
 
   // FUNGSI UTAMA: Menggunakan Header X-goog-api-key untuk AQ. Token
   const handleAskAI = async (e: React.FormEvent) => {
@@ -30,6 +31,7 @@ const SubjectDetail = ({ subject, onBack, onLessonSelect }: SubjectDetailProps) 
     if (!aiQuery.trim()) return;
     setHasAskedAI(true);
     setIsAiLoading(true);
+    setAiStatus("working");
     setAiAnswer("");
 
     try {
@@ -39,6 +41,7 @@ const SubjectDetail = ({ subject, onBack, onLessonSelect }: SubjectDetailProps) 
         setAiAnswer(
           "⚠️ API Key belum terdeteksi di file .env. Pastikan VITE_GEMINI_API_KEY sudah terisi!",
         );
+        setAiStatus("error");
         setIsAiLoading(false);
         return;
       }
@@ -72,6 +75,7 @@ const SubjectDetail = ({ subject, onBack, onLessonSelect }: SubjectDetailProps) 
         setAiAnswer(
           `⚠️ Kendala Gemini: ${data.error.message || "Token tidak valid."}`,
         );
+        setAiStatus("error");
         return;
       }
 
@@ -80,11 +84,13 @@ const SubjectDetail = ({ subject, onBack, onLessonSelect }: SubjectDetailProps) 
         "Maaf, AI belum bisa menjawab pertanyaan tersebut. Coba tanyakan lagi ya!";
 
       setAiAnswer(reply);
+      setAiStatus("done");
     } catch (error) {
       console.error("Fetch error:", error);
       setAiAnswer(
         "Terjadi kesalahan koneksi ke server AI. Cek jaringan internetmu.",
       );
+      setAiStatus("error");
     } finally {
       setIsAiLoading(false);
     }
@@ -207,25 +213,45 @@ const SubjectDetail = ({ subject, onBack, onLessonSelect }: SubjectDetailProps) 
                 disabled={isAiLoading}
                 className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-2xl shadow-[0_4px_0_0_#3730a3] text-sm active:translate-y-1 transition disabled:opacity-50 cursor-pointer"
               >
-                {isAiLoading
-                  ? "Gemini Sedang Berpikir... 💭"
-                  : "Kirim Pertanyaan Ke AI 🚀"}
+                {isAiLoading ? (
+                  <span className="flex justify-center">
+                    <LatticeLoader
+                      status="working"
+                      label="Sedang berpikir"
+                      showTimer
+                      color="#ffffff"
+                      fontSize={14}
+                      cellSize={5}
+                      gap={2}
+                      step={70}
+                      glow
+                    />
+                  </span>
+                ) : (
+                  "Kirim Pertanyaan Ke AI 🚀"
+                )}
               </button>
             </form>
 
             {hasAskedAI && (
               <div className="rounded-2xl border border-indigo-100 bg-indigo-50/70 p-4 text-indigo-700">
-                <ThoughtLine
-                  working={isAiLoading}
-                  steps={["Menghubungi asisten AI"]}
-                  label="Asisten AI sedang menyiapkan jawaban…"
-                  doneLabel="Jawaban disiapkan dalam"
-                  glyph="sparkle"
-                  fontSize={14}
+                <LatticeLoader
+                  status={aiStatus}
+                  label="Asisten AI sedang berpikir"
+                  doneLabel="Jawaban siap dalam"
+                  errorLabel="Gagal dalam"
+                  pattern="orbit"
+                  grid={3}
+                  shape="round"
+                  color="#4f46e5"
+                  doneColor="#22c55e"
+                  errorColor="#ef4444"
+                  cellSize={7}
+                  gap={2}
+                  fontSize={13}
+                  step={80}
+                  glow
                   showTimer
-                  renderLabel={(text) =>
-                    text.replace(/\bminutes\b/g, "menit").replace(/\bseconds\b/g, "detik")
-                  }
                 />
               </div>
             )}

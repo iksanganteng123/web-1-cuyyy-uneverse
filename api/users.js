@@ -7,6 +7,7 @@ if (process.env.NODE_ENV === 'production') {
   if (!global.prisma) {
     global.prisma = new PrismaClient();
   }
+
   prisma = global.prisma;
 }
 
@@ -90,6 +91,42 @@ export default async function handler(req, res) {
       console.error('Prisma Error Detail:', error);
       return res.status(500).json({ 
         message: `Gagal menyimpan: ${error.message}` 
+      });
+    }
+  }
+
+  if (req.method === 'DELETE') {
+    try {
+      const rawId = req.query?.id;
+      const id = (Array.isArray(rawId) ? rawId[0] : rawId)?.trim();
+
+      if (!id) {
+        return res.status(400).json({ message: 'ID akun wajib diisi.' });
+      }
+
+      const deleted = await prisma.$transaction(async (tx) => {
+        const user = await tx.user.findUnique({ where: { id }, select: { id: true } });
+        if (!user) return false;
+
+        await tx.attendance.deleteMany({ where: { studentId: id } });
+        await tx.quizSubmission.deleteMany({ where: { studentId: id } });
+        await tx.quiz.updateMany({
+          where: { createdById: id },
+          data: { createdById: null },
+        });
+        await tx.user.delete({ where: { id } });
+        return true;
+      });
+
+      if (!deleted) {
+        return res.status(404).json({ message: 'Akun pengguna tidak ditemukan.' });
+      }
+
+      return res.status(200).json({ message: 'Akun berhasil dihapus.' });
+    } catch (error) {
+      console.error('Gagal menghapus user dari database:', error);
+      return res.status(500).json({
+        message: `Gagal menghapus akun: ${error instanceof Error ? error.message : String(error)}`,
       });
     }
   }
