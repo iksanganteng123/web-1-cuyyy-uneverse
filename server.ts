@@ -10,17 +10,25 @@ import {
   UserRole,
 } from "@prisma/client"
 
-const prisma = new PrismaClient()
-const app = express()
-const jwtSecret = process.env.JWT_SECRET
-const port = Number(process.env.PORT ?? 5000)
+type GlobalWithPrisma = typeof globalThis & { prisma?: PrismaClient }
+const globalForPrisma = globalThis as GlobalWithPrisma
 
-if (!jwtSecret) {
-  throw new Error("JWT_SECRET wajib diatur di environment.")
+function getPrisma(): PrismaClient {
+  if (!globalForPrisma.prisma) {
+    globalForPrisma.prisma = new PrismaClient()
+  }
+
+  return globalForPrisma.prisma
 }
 
-if (!Number.isInteger(port) || port < 1 || port > 65535) {
-  throw new Error("PORT harus berupa angka antara 1 dan 65535.")
+const app = express()
+
+function getJwtSecret(): string {
+  const secret = process.env.JWT_SECRET
+  if (!secret) {
+    throw new Error("JWT_SECRET wajib diatur di environment.")
+  }
+  return secret
 }
 
 const allowedOrigins = (process.env.CLIENT_ORIGIN ?? "http://localhost:5173")
@@ -91,28 +99,35 @@ const authenticateToken: RequestHandler = async (request, response, next) => {
     return
   }
 
+  let payload: JwtPayload
   try {
-    const payload = jwt.verify(token, jwtSecret) as JwtPayload
-    if (typeof payload.sub !== "string") {
-      response.status(401).json({ error: "Token tidak valid." })
-      return
-    }
-
-    const user = await prisma.user.findUnique({
-      where: { id: payload.sub },
-      select: { id: true, role: true },
-    })
-
-    if (!user) {
-      response.status(401).json({ error: "Akun tidak ditemukan." })
-      return
-    }
-
-    request.authUser = { userId: user.id, role: user.role }
-    next()
+    payload = jwt.verify(token, getJwtSecret()) as JwtPayload
   } catch {
+    if (!process.env.JWT_SECRET) {
+      response.status(500).json({ error: "JWT_SECRET wajib diatur di environment." })
+      return
+    }
     response.status(401).json({ error: "Token tidak valid atau kedaluwarsa." })
+    return
   }
+
+  if (typeof payload.sub !== "string") {
+    response.status(401).json({ error: "Token tidak valid." })
+    return
+  }
+
+  const user = await getPrisma().user.findUnique({
+    where: { id: payload.sub },
+    select: { id: true, role: true },
+  })
+
+  if (!user) {
+    response.status(401).json({ error: "Akun tidak ditemukan." })
+    return
+  }
+
+  request.authUser = { userId: user.id, role: user.role }
+  next()
 }
 
 function requireRole(...roles: UserRole[]): RequestHandler {
@@ -127,7 +142,7 @@ function requireRole(...roles: UserRole[]): RequestHandler {
 }
 
 app.get("/api/users", async (_request, response) => {
-  const users = await prisma.user.findMany({
+  const users = await getPrisma().user.findMany({
     orderBy: { createdAt: "desc" },
   })
 
@@ -151,7 +166,7 @@ app.delete("/api/users/:id", async (request, response) => {
   }
 
   try {
-    const deleted = await prisma.$transaction(async (transaction) => {
+    const deleted = await getPrisma().$transaction(async (transaction) => {
       const user = await transaction.user.findUnique({
         where: { id },
         select: { id: true },
@@ -200,7 +215,7 @@ app.post("/api/auth/login", async (request, response) => {
     return
   }
 
-  const user = await prisma.user.findUnique({
+  const user = await getPrisma().user.findUnique({
     where: { username: identifier.trim() },
   })
 
@@ -209,7 +224,7 @@ app.post("/api/auth/login", async (request, response) => {
     return
   }
 
-  const token = jwt.sign({ role: user.role }, jwtSecret, {
+  const token = jwt.sign({ role: user.role }, getJwtSecret(), {
     subject: user.id,
     expiresIn: "8h",
   })
@@ -249,7 +264,7 @@ app.get("/api/attendance", authenticateToken, async (request, response) => {
       : {}),
   }
 
-  const attendance = await prisma.attendance.findMany({
+  const attendance = await getPrisma().attendance.findMany({
     where,
     include: {
       student: { select: { id: true, username: true, name: true, kelas: true } },
@@ -270,6 +285,7 @@ app.post(
       return
     }
 
+    const prisma = getPrisma()
     const { studentId, date: dateValue, status, notes } = request.body
     const date = parseDate(dateValue)
     const attendanceStatus = typeof status === "string" ? attendanceStatuses[status] : undefined
@@ -314,6 +330,7 @@ app.post(
 )
 
 app.get("/api/quizzes", authenticateToken, async (request, response) => {
+  const prisma = getPrisma()
   const quizzes = await prisma.quiz.findMany({
     where: request.authUser?.role === UserRole.SISWA
       ? { OR: [{ kelas: null }, { kelas: (await prisma.user.findUnique({
@@ -361,7 +378,7 @@ app.post(
       return
     }
 
-    const quiz = await prisma.quiz.findUnique({
+    const quiz = await getPrisma().quiz.findUnique({
       where: { id: quizId.trim() },
       select: {
         id: true,
@@ -388,6 +405,7 @@ app.post(
       ? 0
       : Math.round((correct / quiz.questions.length) * 100)
     const studentId = request.authUser!.userId
+    const prisma = getPrisma()
     const attempt = (await prisma.quizSubmission.count({
       where: { quizId: quiz.id, studentId },
     })) + 1
@@ -416,14 +434,27 @@ app.use((error: unknown, _request: Request, response: express.Response, _next: e
   response.status(500).json({ error: "Terjadi kesalahan pada server." })
 })
 
-const server = app.listen(port, () => {
-  console.log(`MENTARI API berjalan di http://localhost:${port}`)
-})
+function startServer(): void {
+  const port = Number(process.env.PORT ?? 5000)
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error("PORT harus berupa angka antara 1 dan 65535.")
+  }
 
-for (const signal of ["SIGINT", "SIGTERM"] as const) {
-  process.on(signal, () => {
-    server.close(() => {
-      void prisma.$disconnect()
-    })
+  const server = app.listen(port, () => {
+    console.log(`MENTARI API berjalan di http://localhost:${port}`)
   })
+
+  for (const signal of ["SIGINT", "SIGTERM"] as const) {
+    process.on(signal, () => {
+      server.close(() => {
+        void globalForPrisma.prisma?.$disconnect()
+      })
+    })
+  }
 }
+
+if (process.env.VERCEL !== "1") {
+  startServer()
+}
+
+export default app

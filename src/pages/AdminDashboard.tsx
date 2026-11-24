@@ -159,7 +159,7 @@ const AdminDashboard = () => {
     setMessage("");
 
     try {
-      const response = await fetch(`/api/users/${encodeURIComponent(user.id)}`, {
+      const response = await fetch(`/api/users?id=${encodeURIComponent(user.id)}`, {
         method: "DELETE",
       });
       const result = await response

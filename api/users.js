@@ -1,14 +1,11 @@
 import { PrismaClient } from '@prisma/client';
 
-let prisma;
-if (process.env.NODE_ENV === 'production') {
-  prisma = new PrismaClient();
-} else {
-  if (!global.prisma) {
-    global.prisma = new PrismaClient();
+function getPrisma() {
+  if (!globalThis.prisma) {
+    globalThis.prisma = new PrismaClient();
   }
 
-  prisma = global.prisma;
+  return globalThis.prisma;
 }
 
 export default async function handler(req, res) {
@@ -17,6 +14,7 @@ export default async function handler(req, res) {
   // 1. FITUR AMBIL DATA (GET)
   if (req.method === 'GET') {
     try {
+      const prisma = getPrisma();
       const users = await prisma.user.findMany({
         orderBy: { createdAt: 'desc' },
       });
@@ -37,6 +35,7 @@ export default async function handler(req, res) {
   // 2. FITUR SIMPAN DATA BARU (POST)
   if (req.method === 'POST') {
     try {
+      const prisma = getPrisma();
       const body = req.body || {};
       const { name, username } = body;
       const password = body.password || body.passwordHash;
@@ -97,24 +96,26 @@ export default async function handler(req, res) {
 
   if (req.method === 'DELETE') {
     try {
+      const prisma = getPrisma();
       const rawId = req.query?.id;
-      const id = (Array.isArray(rawId) ? rawId[0] : rawId)?.trim();
+      const id = (Array.isArray(rawId) ? rawId[0] : rawId);
 
-      if (!id) {
+      if (typeof id !== 'string' || !id.trim()) {
         return res.status(400).json({ message: 'ID akun wajib diisi.' });
       }
 
+      const normalizedId = id.trim();
       const deleted = await prisma.$transaction(async (tx) => {
-        const user = await tx.user.findUnique({ where: { id }, select: { id: true } });
+        const user = await tx.user.findUnique({ where: { id: normalizedId }, select: { id: true } });
         if (!user) return false;
 
-        await tx.attendance.deleteMany({ where: { studentId: id } });
-        await tx.quizSubmission.deleteMany({ where: { studentId: id } });
+        await tx.attendance.deleteMany({ where: { studentId: normalizedId } });
+        await tx.quizSubmission.deleteMany({ where: { studentId: normalizedId } });
         await tx.quiz.updateMany({
-          where: { createdById: id },
+          where: { createdById: normalizedId },
           data: { createdById: null },
         });
-        await tx.user.delete({ where: { id } });
+        await tx.user.delete({ where: { id: normalizedId } });
         return true;
       });
 
